@@ -100,6 +100,11 @@ struct Cli {
     dbus_isolated: bool,
 }
 
+fn is_mutter_host() -> bool {
+    let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
+    desktop.contains("GNOME") || desktop.contains("Unity")
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     init_logging(cli.log_file.as_deref());
@@ -168,13 +173,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // selection (only meaningful when the host is Xorg). See
         // emskin_clipboard::BackendHint for per-variant semantics.
         let mut hints: Vec<BackendHint> = vec![BackendHint::DataControl];
-        if let Some(ptr) = host_wl_display_ptr(&state) {
-            // SAFETY: the wl_display is owned by winit's backend, which
-            // lives in `state.backend` for the entire compositor run. The
-            // returned clipboard backend sits in `state.selection.clipboard`
-            // on the same struct, so default field-drop order guarantees
-            // the backend drops before the wl_display.
-            hints.push(unsafe { BackendHint::wl_data_device(ptr) });
+        if !is_mutter_host() {
+            if let Some(ptr) = host_wl_display_ptr(&state) {
+                // SAFETY: the wl_display is owned by winit's backend, which
+                // lives in `state.backend` for the entire compositor run. The
+                // returned clipboard backend sits in `state.selection.clipboard`
+                // on the same struct, so default field-drop order guarantees
+                // the backend drops before the wl_display.
+                hints.push(unsafe { BackendHint::wl_data_device(ptr) });
+            }
         }
         hints.push(BackendHint::X11);
 
